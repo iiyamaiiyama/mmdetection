@@ -4,18 +4,16 @@ import mmcv
 import numpy as np
 from mmcv.parallel import DataContainer as DC
 from torch.utils.data import Dataset
+from pycocotools.mask import decode
 
-from .registry import DATASETS
 from .transforms import (ImageTransform, BboxTransform, MaskTransform,
                          SegMapTransform, Numpy2Tensor)
 from .utils import to_tensor, random_scale
 from .extra_aug import ExtraAugmentation
 
 
-@DATASETS.register_module
 class CustomDataset(Dataset):
     """Custom dataset for detection.
-
     Annotation format:
     [
         {
@@ -31,7 +29,6 @@ class CustomDataset(Dataset):
         },
         ...
     ]
-
     The `ann` field is optional for testing.
     """
 
@@ -150,7 +147,6 @@ class CustomDataset(Dataset):
 
     def _set_group_flag(self):
         """Set flag according to image aspect ratio.
-
         Images with aspect ratio greater than 1 will be set as group 1,
         otherwise group 0.
         """
@@ -202,14 +198,17 @@ class CustomDataset(Dataset):
         if self.with_crowd:
             gt_bboxes_ignore = ann['bboxes_ignore']
 
-        # skip the image if there is no valid gt bbox
-        if len(gt_bboxes) == 0:
-            return None
+        if self.with_mask:
+            gt_masks = decode(ann['masks'])
+            gt_masks = [gt_masks[..., i] for i in range(gt_masks.shape[-1])]
 
         # extra augmentation
         if self.extra_aug is not None:
-            img, gt_bboxes, gt_labels = self.extra_aug(img, gt_bboxes,
-                                                       gt_labels)
+            img = self.extra_aug(img)
+
+        # skip the image if there is no valid gt bbox
+        if len(gt_bboxes) == 0:
+            return None
 
         # apply transforms
         flip = True if np.random.rand() < self.flip_ratio else False
@@ -238,8 +237,7 @@ class CustomDataset(Dataset):
             gt_bboxes_ignore = self.bbox_transform(gt_bboxes_ignore, img_shape,
                                                    scale_factor, flip)
         if self.with_mask:
-            gt_masks = self.mask_transform(ann['masks'], pad_shape,
-                                           scale_factor, flip)
+            gt_masks = self.mask_transform(gt_masks, pad_shape, scale_factor, flip)
 
         ori_shape = (img_info['height'], img_info['width'], 3)
         img_meta = dict(
@@ -321,4 +319,4 @@ class CustomDataset(Dataset):
         data = dict(img=imgs, img_meta=img_metas)
         if self.proposals is not None:
             data['proposals'] = proposals
-        return data
+return data
