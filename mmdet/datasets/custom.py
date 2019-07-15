@@ -319,4 +319,4 @@ class CustomDataset(Dataset):
         data = dict(img=imgs, img_meta=img_metas)
         if self.proposals is not None:
             data['proposals'] = proposals
-return data
+        return data
